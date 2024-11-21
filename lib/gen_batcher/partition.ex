@@ -30,15 +30,15 @@ defmodule GenBatcher.Partition do
   end
 
   @doc false
-  @spec flush_async_block(GenServer.server(), timeout()) :: :ok
-  def flush_async_block(partition, timeout) do
-    GenServer.call(partition, :flush_async_block, timeout)
-  end
-
-  @doc false
   @spec flush_sync(GenServer.server(), timeout()) :: :ok
   def flush_sync(partition, timeout) do
-    GenServer.call(partition, :flush_sync, timeout)
+    with pid when is_pid(pid) <- GenServer.call(partition, :flush_sync, timeout) do
+      ref = Process.monitor(pid)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _} -> :ok
+      end
+    end
   end
 
   @doc false
@@ -57,12 +57,6 @@ defmodule GenBatcher.Partition do
   @spec insert_all_safe(GenServer.server(), Enumerable.t(), timeout()) :: non_neg_integer()
   def insert_all_safe(partition, items, timeout) do
     GenServer.call(partition, {:insert_all_safe, items}, timeout)
-  end
-
-  @doc false
-  @spec insert_all_safe_block(GenServer.server(), Enumerable.t(), timeout()) :: non_neg_integer()
-  def insert_all_safe_block(partition, items, timeout) do
-    GenServer.call(partition, {:insert_all_safe_block, items}, timeout)
   end
 
   @doc false
@@ -88,23 +82,19 @@ defmodule GenBatcher.Partition do
   @impl GenServer
   @spec handle_call(term(), GenServer.from(), State.t()) ::
           {:reply, term(), State.t()}
-          | {:reply, term(), State.t(), {:continue, :flush_async | :refresh}}
+          | {:reply, term(), State.t(), {:continue, :flush | :refresh}}
   def handle_call(:dump, _from, state) do
     items = items(state)
     {:reply, items, state, {:continue, :refresh}}
   end
 
   def handle_call(:flush_async, _from, state) do
-    {:reply, :ok, state, {:continue, :flush_async}}
-  end
-
-  def handle_call(:flush_async_block, _from, state) do
-    {:reply, :ok, state, {:continue, :flush_sync}}
+    {:reply, :ok, state, {:continue, :flush}}
   end
 
   def handle_call(:flush_sync, _from, state) do
-    do_flush_sync(state)
-    {:reply, :ok, state, {:continue, :refresh}}
+    result = do_flush(state)
+    {:reply, result, state, {:continue, :refresh}}
   end
 
   def handle_call(:info, _from, state) do
@@ -113,30 +103,27 @@ defmodule GenBatcher.Partition do
   end
 
   def handle_call({:insert, item}, _from, state) do
-    case {do_insert(state, item), state.blocking_flush?} do
-      {{:cont, state}, _} -> {:reply, :ok, state}
-      {{:flush, state}, false} -> {:reply, :ok, state, {:continue, :flush_async}}
-      {{:flush, state}, true} -> {:reply, :ok, state, {:continue, :flush_sync}}
+    case do_insert(state, item) do
+      {:cont, state} -> {:reply, :ok, state}
+      {:flush, state} -> {:reply, :ok, state, {:continue, :flush}}
     end
   end
 
   def handle_call({:insert_all_safe, items}, _from, state) do
-    {count, result} = do_insert_all_safe(state, items, &do_flush_async/1)
+    {count, result} =
+      Enum.reduce(items, {0, {:cont, state}}, fn
+        item, {count, {:cont, state}} ->
+          {count + 1, do_insert(state, item)}
 
-    case {result, state.blocking_flush?} do
-      {{:cont, state}, _} -> {:reply, count, state}
-      {{:flush, state}, false} -> {:reply, count, state, {:continue, :flush_async}}
-      {{:flush, state}, true} -> {:reply, count, state, {:continue, :flush_sync}}
-    end
-  end
+        item, {count, {:flush, state}} ->
+          do_flush(state)
+          state = do_refresh(state)
+          {count + 1, do_insert(state, item)}
+      end)
 
-  def handle_call({:insert_all_safe_block, items}, _from, state) do
-    {count, result} = do_insert_all_safe(state, items, &do_flush_sync/1)
-
-    case {result, state.blocking_flush?} do
-      {{:cont, state}, _} -> {:reply, count, state}
-      {{:flush, state}, false} -> {:reply, count, state, {:continue, :flush_async}}
-      {{:flush, state}, true} -> {:reply, count, state, {:continue, :flush_sync}}
+    case result do
+      {:cont, state} -> {:reply, count, state}
+      {:flush, state} -> {:reply, count, state, {:continue, :flush}}
     end
   end
 
@@ -152,18 +139,14 @@ defmodule GenBatcher.Partition do
           {count + 1, [item | items], :flush}
       end)
 
-    case {result, state.blocking_flush?} do
-      {{:cont, acc}, _} ->
+    case result do
+      {:cont, acc} ->
         state = %{state | size: state.size + count, items: items, acc: acc}
         {:reply, count, state}
 
-      {:flush, false} ->
+      :flush ->
         state = %{state | size: state.size + count, items: items}
-        {:reply, count, state, {:continue, :flush_async}}
-
-      {:flush, true} ->
-        state = %{state | size: state.size + count, items: items}
-        {:reply, count, state, {:continue, :flush_sync}}
+        {:reply, count, state, {:continue, :flush}}
     end
   end
 
@@ -171,13 +154,8 @@ defmodule GenBatcher.Partition do
   @impl GenServer
   @spec handle_continue(term(), State.t()) ::
           {:noreply, State.t()} | {:noreply, State.t(), {:continue, :refresh}}
-  def handle_continue(:flush_async, state) do
-    do_flush_async(state)
-    {:noreply, state, {:continue, :refresh}}
-  end
-
-  def handle_continue(:flush_sync, state) do
-    do_flush_sync(state)
+  def handle_continue(:flush, state) do
+    do_flush(state)
     {:noreply, state, {:continue, :refresh}}
   end
 
@@ -189,13 +167,9 @@ defmodule GenBatcher.Partition do
   @doc false
   @impl GenServer
   @spec handle_info(term(), State.t()) ::
-          {:noreply, State.t()} | {:noreply, State.t(), {:continue, :flush_async}}
+          {:noreply, State.t()} | {:noreply, State.t(), {:continue, :flush}}
   def handle_info({:timeout, timer, :flush}, state) when timer == state.timer do
-    if state.blocking_flush? do
-      {:noreply, state, {:continue, :flush_sync}}
-    else
-      {:noreply, state, {:continue, :flush_async}}
-    end
+    {:noreply, state, {:continue, :flush}}
   end
 
   def handle_info(_, state), do: {:noreply, state}
@@ -203,7 +177,7 @@ defmodule GenBatcher.Partition do
   @doc false
   @impl GenServer
   @spec terminate(term(), State.t()) :: term()
-  def terminate(_, state), do: do_flush_sync(state)
+  def terminate(_, state), do: do_blocking_flush(state)
 
   ################################
   # Private API
@@ -243,18 +217,6 @@ defmodule GenBatcher.Partition do
     end
   end
 
-  defp do_insert_all_safe(state, items, flush_callback) do
-    Enum.reduce(items, {0, {:cont, state}}, fn
-      item, {count, {:cont, state}} ->
-        {count + 1, do_insert(state, item)}
-
-      item, {count, {:flush, state}} ->
-        flush_callback.(state)
-        state = do_refresh(state)
-        {count + 1, do_insert(state, item)}
-    end)
-  end
-
   defp do_insert(state, item) do
     case state.handle_insert.(item, state.acc) do
       {:cont, acc} ->
@@ -267,21 +229,26 @@ defmodule GenBatcher.Partition do
     end
   end
 
-  defp do_flush_async(%State{items: [], flush_empty?: false}), do: :ok
+  defp do_flush(%State{items: [], flush_empty?: false}), do: :ok
 
-  defp do_flush_async(state) do
-    fun = fn ->
-      Process.flag(:trap_exit, true)
-      do_flush_sync(state)
-    end
-
-    Task.Supervisor.start_child(GenBatcher.TaskSupervisor, fun, shutdown: state.shutdown)
-    :ok
+  defp do_flush(%State{blocking_flush?: false} = state) do
+    do_non_blocking_flush(state)
   end
 
-  defp do_flush_sync(%State{items: [], flush_empty?: false}), do: :ok
+  defp do_flush(state), do: do_blocking_flush(state)
 
-  defp do_flush_sync(state) do
+  defp do_non_blocking_flush(state) do
+    fun = fn ->
+      Process.flag(:trap_exit, true)
+      do_blocking_flush(state)
+    end
+
+    opts = [shutdown: state.shutdown]
+    {:ok, pid} = Task.Supervisor.start_child(GenBatcher.TaskSupervisor, fun, opts)
+    pid
+  end
+
+  defp do_blocking_flush(state) do
     items = items(state)
     info = do_info(state)
     state.handle_flush.(items, info)
@@ -302,7 +269,7 @@ defmodule GenBatcher.Partition do
 
   defp now, do: System.monotonic_time(:millisecond)
 
-  defp next_flush(%{timer: nil}), do: nil
+  defp next_flush(%State{timer: nil}), do: nil
 
   defp next_flush(state) do
     with false <- Process.read_timer(state.timer), do: 0

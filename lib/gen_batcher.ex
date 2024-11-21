@@ -6,19 +6,22 @@ defmodule GenBatcher do
 
   TODO(Gordon) - test module-only parameterization?
   TODO(Gordon) - test the blocking default for flush
-  TODO(Gordon) - reconsider how default blocking behavior is handled?
+  TODO(Gordon) - test flush_empty? behavior
   TODO(Gordon) - readme badges
+  TODO(Gordon) - remove benchee dep
+  TODO(Gordon) - doctests?
 
   TODO(Gordon) - configure styler and other checks for CI
   TODO(Gordon) - configure styler
-  TODO(Gordon) - single child spec function for both start approaches
   TODO(Gordon) - use partition supervisor for task supervisor?
+
+  TODO(Gordon) - add flush_empty? opt for manual flush function?
   """
 
   alias GenBatcher.Partition
   alias GenBatcher.Partition.Info
 
-  @default_timeout 5_000
+  @default_timeout :infinity
 
   @opts_schema [
     :flush_meta,
@@ -130,25 +133,21 @@ defmodule GenBatcher do
 
   A `GenBatcher` can be started with the following options:
 
-    * `:batch_timeout` - A `t:timeout/0` denoting the maximum amount of time
-      (in ms) allowed between flushes. This field is optional and defaults to
-      `:infinity`.
+    * `:batch_timeout` - An optional `t:timeout/0` denoting the maximum amount
+      of time (in ms) allowed between flushes. Defaults to `:infinity`.
 
-    * `:blocking_flush?` - A `t:boolean/0` denoting whether or not a flush
-      should block a partition process. This can be useful for applying
-      backpressure. This field is optional and defaults to `false`
+    * `:blocking_flush?` - An optional `t:boolean/0` denoting whether or not a
+      flush should block a partition process. This can be useful for applying
+      backpressure. Defaults to `false`.
 
-    * `:flush_empty?` - A `t:boolean/0` denoting whether or not an empty
-      partition should be flushed. This field is optional and defaults to
-      `false`.
+    * `:flush_empty?` - An optional `t:boolean/0` denoting whether or not an
+      empty partition should be flushed. Defaults to `false`.
 
-    * `:flush_meta` - A `t:term/0` to be included in `t:partition_info/0`
-      structs. This field is optional and defaults to `nil`.
+    * `:flush_meta` - An optional `t:term/0` to be included in
+      `t:partition_info/0` structs. Defaults to `nil`.
 
-    * `:flush_trigger` - A specification for an item-based flush condition. This
-      field is optional and has no default (meaning that, if not included,
-      inserting items will never trigger a flush). This field can take any of
-      the following forms:
+    * `:flush_trigger` - An optional specification for an item-based flush
+      condition that can take any of the following forms:
 
       * `{:size, max_size}` where `max_size` is a `t:pos_integer/0` denoting the
         maximum number of items allowed in a partition before a flush is
@@ -165,28 +164,32 @@ defmodule GenBatcher do
         partition. For more information about these functions, see
         `c:initial_acc/0` and `c:handle_insert/2` respectively.
 
-      If a `t:module/0` is provided and this field in not explicitly specified,
-      `{:dynamic_custom, init_acc_fun, handle_insert}` will be used where
-      `init_acc_fun` and `handle_insert` are that module's `initial_acc/0` and
-      `handle_insert/2` implementations respectively.
+      If a `t:module/0` is provided and `:flush_trigger` is not explicitly
+      specified, `{:dynamic_custom, init_acc_fun, handle_insert}` will be used
+      where `init_acc_fun` and `handle_insert` are that module's `initial_acc/0`
+      and `handle_insert/2` implementations respectively.
+
+      If `:flush_trigger` is not specified and a `t:module/0` is not provided,
+      the `GenBatcher` will not have an item-based flush condition (meaning that
+      inserting items will never trigger a flush).
 
     * `:handle_flush` - A function invoked to flush a partition. For more
       information, see `c:handle_flush/2`. When a `t:module` is provided, this
       field will be **overridden** by that module's `handle_flush/2`
-      implementation. This field is required.
+      implementation. If a `t:module/0` is not provided, `:handle_flush` is
+      required.
 
-    * `:name` - An identifier for a `GenBatcher`. For more information, see
-      `t:t/0`. If a `t:module/0` is provided, that module's name will be used
-      for this field unless otherwise specified. This field is optional and
-      defaults to `GenBatcher`.
+    * `:name` - An optional identifier for a `GenBatcher`. For more information,
+      see `t:t/0`. If a `t:module/0` is provided, that module's name will be
+      used unless otherwise specified. Defaults to `GenBatcher`.
 
-    * `:partitions` - A `t:pos_integer/0` denoting the number of partitions.
-      This field is optional and defaults to `1`.
+    * `:partitions` - An optional `t:pos_integer/0` denoting the number of
+      partitions. Defaults to `1`.
       TODO(Gordon) - link to partitioning header
 
-    * `:shutdown` - A `t:timeout/0` denoting the maximum amount of time (in ms)
-      to allow flushes to finish on shutdown or `:brutal_kill` if flushes should
-      be killed immediately. This field is optional and defaults to `:infinity`.
+    * `:shutdown` - An optional `t:timeout/0` denoting the maximum amount of
+      time (in ms) to allow flushes to finish on shutdown or `:brutal_kill` if
+      flushes should be stopped immediately. Defaults to `:infinity`.
       TODO(Gordon) - link to shutdown header
   """
   @spec start_link(module() | nil, keyword()) :: Supervisor.on_start()
@@ -206,6 +209,8 @@ defmodule GenBatcher do
   Dumps the contents of all partitions for the given `GenBatcher` to a nested
   list, bypassing flushes and refreshing the partitions.
 
+  The partitions' contents are returned in index order.
+
   While this functionality may occasionally be desriable in a production
   environment, it is intended to be used primarily for testing and debugging.
 
@@ -213,9 +218,9 @@ defmodule GenBatcher do
 
   A `GenBatcher` can be dumped with the following options:
 
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
 
   ## Examples
 
@@ -231,10 +236,10 @@ defmodule GenBatcher do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     case fetch_meta(gen_batcher) do
-      {1, _, _} ->
+      {1, _} ->
         [Partition.dump(gen_batcher, timeout)]
 
-      {partitions, _, _} ->
+      {partitions, _} ->
         Enum.map(0..(partitions - 1), fn partition_key ->
           gen_batcher
           |> partition_name(partition_key)
@@ -254,9 +259,9 @@ defmodule GenBatcher do
 
   A `GenBatcher` partition can be dumped with the following options:
 
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec dump_partition(t(), partition_key()) :: list()
   @spec dump_partition(t(), partition_key(), keyword()) :: list()
@@ -264,7 +269,7 @@ defmodule GenBatcher do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     case fetch_meta(gen_batcher) do
-      {1, _, _} ->
+      {1, _} ->
         Partition.dump(gen_batcher, timeout)
 
       _ ->
@@ -284,57 +289,52 @@ defmodule GenBatcher do
 
   A `GenBatcher` can be flushed with the following options:
 
-    * `:async?` - A `t:boolean/0` denoting whether or not a partition should be
-      flushed asynchronously. This field is optional and defaults to `true`.
+    * `:async?` - An optional `t:boolean/0` denoting whether or not a partition
+      should be flushed asynchronously. Defaults to `true`.
 
-    * `:blocking?` - A `t:boolean/0` denoting whether or not partitions should
-      be blocked while flushing. This field is optional and defaults to the
-      behavior specified by the `blocking_flush?` field provided to
-      `start_link/2`.
+    * `:concurrent?` - An optional `t:boolean/0` denoting whether or not
+      partitions should flush concurrently. Only relevant if `:async?` is
+      `false` and the given `GenBatcher` has more than 1 partition. Defaults to
+      `true`.
 
-    * `:max_concurrency` - A `t:pos_integer/0` denoting the maximum number of
-      partitions that can flush simultaneously. This field is optional and
-      defaults to `1`.
-
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec flush(t()) :: :ok
   @spec flush(t(), keyword()) :: :ok
   def flush(gen_batcher, opts \\ []) do
     {timeout, opts} = Keyword.pop(opts, :timeout, @default_timeout)
-    {partitions, _, blocking?} = fetch_meta(gen_batcher)
-    {blocking?, opts} = Keyword.pop(opts, :blocking?, blocking?)
-    {async?, opts} = Keyword.pop(opts, :async?, true)
-    flush_fun = flush_function(async?, blocking?, timeout)
-    max_concurrency = Keyword.get(opts, :max_concurrency, 1)
+    {concurrent?, opts} = Keyword.pop(opts, :concurrent?, true)
+    async? = Keyword.get(opts, :async?, true)
+    flush_fun = flush_function(async?, timeout)
+    {partitions, _} = fetch_meta(gen_batcher)
 
-    case {partitions, max_concurrency} do
-      {1, _} ->
+    case {partitions, async?, concurrent?} do
+      {1, _, _} ->
         flush_fun.(gen_batcher)
 
-      {partitions, 1} ->
-        Enum.each(0..(partitions - 1), fn partition_key ->
-          gen_batcher
-          |> partition_name(partition_key)
-          |> flush_fun.()
-        end)
-
-      {partitions, max_concurrency} ->
-        max_concurrency = min(max_concurrency, partitions)
-        opts = [max_concurrency: max_concurrency, ordered: false, timeout: :infinity]
-
-        0..(partitions - 1)
-        |> Task.async_stream(
+      {partitions, false, true} ->
+        GenBatcher.TaskSupervisor
+        |> Task.Supervisor.async_stream_nolink(
+          0..(partitions - 1),
           fn partition_key ->
             gen_batcher
             |> partition_name(partition_key)
             |> flush_fun.()
           end,
-          opts
+          max_concurrency: partitions,
+          timeout: :infinity,
+          ordered: false
         )
         |> Stream.run()
+
+      _ ->
+        Enum.each(0..(partitions - 1), fn partition_key ->
+          gen_batcher
+          |> partition_name(partition_key)
+          |> flush_fun.()
+        end)
     end
   end
 
@@ -348,29 +348,23 @@ defmodule GenBatcher do
 
   A `GenBatcher` partition can be flushed with the following options:
 
-    * `:async?` - A `t:boolean/0` denoting whether or not a partition should be
-      flushed asynchronously. This field is optional and defaults to `true`.
+    * `:async?` - An optional `t:boolean/0` denoting whether or not the
+      partition should be flushed asynchronously. Defaults to `true`.
 
-    * `:blocking?` - A `t:boolean/0` denoting whether or not partitions should
-      be blocked while flushing. This field is optional and defaults to the
-      behavior specified by the `blocking_flush?` field provided to
-      `start_link/2`.
-
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec flush_partition(t(), partition_key()) :: :ok
   @spec flush_partition(t(), partition_key(), keyword()) :: :ok
   def flush_partition(gen_batcher, partition_key, opts \\ []) do
     {timeout, opts} = Keyword.pop(opts, :timeout, @default_timeout)
-    {partitions, _, blocking?} = fetch_meta(gen_batcher)
-    {blocking?, opts} = Keyword.pop(opts, :blocking?, blocking?)
+    {partitions, _} = fetch_meta(gen_batcher)
 
     flush_fun =
       opts
       |> Keyword.get(:async?, true)
-      |> flush_function(blocking?, timeout)
+      |> flush_function(timeout)
 
     case partitions do
       1 ->
@@ -386,6 +380,8 @@ defmodule GenBatcher do
   @doc """
   Returns information for all partitions for the given `GenBatcher`.
 
+  The `t:partition_info/0` structs are returned in index order.
+
   While this functionality may occasionally be desriable in a production
   environment, it is intended to be used primarily for testing and debugging.
 
@@ -393,9 +389,9 @@ defmodule GenBatcher do
 
   Information about a `GenBatcher` can be retrieved with the following options:
 
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec info(t()) :: [partition_info()]
   @spec info(t(), keyword()) :: [partition_info()]
@@ -403,10 +399,10 @@ defmodule GenBatcher do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     case fetch_meta(gen_batcher) do
-      {1, _, _} ->
+      {1, _} ->
         [Partition.info(gen_batcher, timeout)]
 
-      {partitions, _, _} ->
+      {partitions, _} ->
         Enum.map(0..(partitions - 1), fn partition_key ->
           gen_batcher
           |> partition_name(partition_key)
@@ -421,14 +417,14 @@ defmodule GenBatcher do
   ## Options
   An item can be inserted into a `GenBatcher` with the following options:
 
-    * `:partition_key` - A `t:partition_key/0` denoting which partition to
-      insert the item into. This field is optional and, if not included, the
-      partition is decided by the round-robin partitioner.
+    * `:partition_key` - An optional `t:partition_key/0` denoting which
+      partition to insert the item into. If not specified, the partition is
+      decided by the round-robin partitioner.
       TODO(Gordon) - link to partition doc
 
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec insert(t(), term()) :: :ok
   @spec insert(t(), term(), keyword()) :: :ok
@@ -436,10 +432,10 @@ defmodule GenBatcher do
     {timeout, opts} = Keyword.pop(opts, :timeout, @default_timeout)
 
     case fetch_meta(gen_batcher) do
-      {1, _, _} ->
+      {1, _} ->
         Partition.insert(gen_batcher, item, timeout)
 
-      {_, partitioner, _} ->
+      {_, partitioner} ->
         partition_key = Keyword.get_lazy(opts, :partition_key, partitioner)
 
         gen_batcher
@@ -457,46 +453,39 @@ defmodule GenBatcher do
   > #### Tip {: .tip}
   >
   > When inserting multiple items into an `GenBatcher`, this function will be
-  > far more performant than calling `insert/2` for each one. As such, this
-  > function should be preferred.
+  > far more performant than calling `insert/2` for each one.
 
   ## Options
 
   Items can be inserted into a `GenBatcher` with the following options:
 
-    * `:blocking_flush?` - A `t:boolean/0` denoting whether or not partitions
-      should be blocked while flushing. This field is only relevant if a flush
-      would be triggered before all items are inserted. This field is optional
-      and defaults to the behavior specified by the `blocking_flush?` field
-      provided to `start_link/2`.
-
-    * `:partition_key` - A `t:partition_key/0` denoting which partition to
-      insert the item into. This field is optional and, if not included, the
-      partition is decided by the round-robin partitioner.
+    * `:partition_key` - An optional `t:partition_key/0` denoting which
+      partition to insert the items into. If not specified, the partition is
+      decided by the round-robin partitioner.
       TODO(Gordon) - link to partition doc
 
-    * `:safe?` - A `t:boolean/0` denoting whether or not to flush immediately
-      after a flush condition is met. If `false` and a flush condition is met
-      before all items have been inserted, the remaining items are inserted
-      before a flush is triggered. This can improve throughput at the cost of
-      allowing otherwise-impossible batches. This field is optional and
-      defaults to `true`.
+    * `:safe?` - An optional `t:boolean/0` denoting whether or not to flush
+      immediately after a flush condition is met. If `true` and a flush
+      condition is met, a flush is triggered before inserting the remaining
+      items. Otherwise, a flush is triggered once **all** items have been
+      inserted. This can improve throughput at the cost of allowing otherwise
+      impossible batches. Only relevant if a flush would be triggered before all
+      items are inserted. Defaults to `true`.
 
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec insert_all(t(), Enumerable.t()) :: non_neg_integer()
   @spec insert_all(t(), Enumerable.t(), keyword()) :: non_neg_integer()
   def insert_all(gen_batcher, items, opts \\ []) do
     {timeout, opts} = Keyword.pop(opts, :timeout, @default_timeout)
-    {partitions, partitioner, blocking_flush?} = fetch_meta(gen_batcher)
-    {blocking_flush?, opts} = Keyword.pop(opts, :blocking_flush?, blocking_flush?)
+    {partitions, partitioner} = fetch_meta(gen_batcher)
 
     insert_all_fun =
       opts
       |> Keyword.get(:safe?, true)
-      |> insert_all_function(blocking_flush?, items, timeout)
+      |> insert_all_function(items, timeout)
 
     case partitions do
       1 ->
@@ -522,9 +511,9 @@ defmodule GenBatcher do
   Information about a `GenBatcher` partition can be retrieved with the following
   options:
 
-    * `:timeout` - A `t:timeout/0` (in ms) for this operation. For more
-      information, see [Operation Timeouts](README.md#operation-timeouts). This
-      field is optional and defaults to `5000`.
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
+      more information, see [Operation Timeouts](README.md#operation-timeouts).
+      Defaults to `:infinity`.
   """
   @spec partition_info(t(), partition_key()) :: partition_info()
   @spec partition_info(t(), partition_key(), keyword()) :: partition_info()
@@ -532,7 +521,7 @@ defmodule GenBatcher do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     case fetch_meta(gen_batcher) do
-      {1, _, _} ->
+      {1, _} ->
         Partition.info(gen_batcher, timeout)
 
       _ ->
@@ -643,13 +632,12 @@ defmodule GenBatcher do
   end
 
   defp persist_meta(opts, partitions) do
-    blocking_flush? = Keyword.fetch!(opts, :blocking_flush?)
     partitioner = build_partitioner(partitions)
 
     opts
     |> Keyword.fetch!(:name)
     |> gen_batcher_key()
-    |> :persistent_term.put({partitions, partitioner, blocking_flush?})
+    |> :persistent_term.put({partitions, partitioner})
   end
 
   defp build_partitioner(1), do: fn -> 0 end
@@ -668,19 +656,14 @@ defmodule GenBatcher do
 
   defp gen_batcher_key(gen_batcher), do: {__MODULE__, gen_batcher}
 
-  defp flush_function(true, false, timeout), do: &Partition.flush_async(&1, timeout)
-  defp flush_function(true, true, timeout), do: &Partition.flush_async_block(&1, timeout)
-  defp flush_function(false, _, timeout), do: &Partition.flush_sync(&1, timeout)
+  defp flush_function(true, timeout), do: &Partition.flush_async(&1, timeout)
+  defp flush_function(_, timeout), do: &Partition.flush_sync(&1, timeout)
 
-  defp insert_all_function(true, false, items, timeout) do
+  defp insert_all_function(true, items, timeout) do
     &Partition.insert_all_safe(&1, items, timeout)
   end
 
-  defp insert_all_function(true, true, items, timeout) do
-    &Partition.insert_all_safe_block(&1, items, timeout)
-  end
-
-  defp insert_all_function(false, _, items, timeout) do
+  defp insert_all_function(_, items, timeout) do
     &Partition.insert_all_unsafe(&1, items, timeout)
   end
 

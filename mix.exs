@@ -3,7 +3,7 @@ defmodule GenBatcher.MixProject do
 
   use Mix.Project
 
-  @version "0.1.0"
+  @version "1.0.0"
 
   # TODO(Gordon) - Test coverage (see nimble_pool)
   # TODO(Gordon) - configure docs
