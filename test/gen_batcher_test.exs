@@ -18,7 +18,6 @@ defmodule GenBatcherTest do
 
   # TODO(Gordon) - document general test workflow (ie sending test process a message from flusher)
   # TODO(Gordon) - more robust replacement for `refute_received` calls
-  # TODO(Gordon) - fix extra flush functions
   # :erlang.process_info(self(), :messages)
 
   describe "start_link/2" do
@@ -67,7 +66,6 @@ defmodule GenBatcherTest do
       end
 
       # Creates a deterministic function to generate an initial acc
-      # TODO(Gordon) - do this with agent instead?
       atomics_ref = :atomics.new(1, signed: false)
       initial_acc = fn -> :atomics.add_get(atomics_ref, 1, 1) end
       opts = [flush_trigger: {:dynamic_custom, initial_acc, handle_insert}]
