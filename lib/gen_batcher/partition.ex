@@ -6,6 +6,8 @@ defmodule GenBatcher.Partition do
   alias GenBatcher.Partition.Info
   alias GenBatcher.Partition.State
 
+  # TODO(Gordon) - what if task supervisor fails to start process?
+
   ################################
   # Public API
   ################################
@@ -32,7 +34,7 @@ defmodule GenBatcher.Partition do
   @doc false
   @spec flush_sync(GenServer.server(), timeout()) :: :ok
   def flush_sync(partition, timeout) do
-    with pid when is_pid(pid) <- GenServer.call(partition, :flush_sync, timeout) do
+    with {:ok, pid} <- GenServer.call(partition, :flush_sync, timeout) do
       ref = Process.monitor(pid)
 
       receive do
@@ -155,6 +157,9 @@ defmodule GenBatcher.Partition do
   @spec handle_continue(term(), State.t()) ::
           {:noreply, State.t()} | {:noreply, State.t(), {:continue, :refresh}}
   def handle_continue(:flush, state) do
+    # Stores the timestamp of the last deferred flush. This is done exclusively
+    # for testing, hence the usage of the process dictionary.
+    Process.put(:last_deferred_flush, now())
     do_flush(state)
     {:noreply, state, {:continue, :refresh}}
   end
@@ -245,8 +250,7 @@ defmodule GenBatcher.Partition do
     end
 
     opts = [shutdown: state.shutdown]
-    {:ok, pid} = Task.Supervisor.start_child(GenBatcher.TaskSupervisor, fun, opts)
-    pid
+    Task.Supervisor.start_child(GenBatcher.TaskSupervisor, fun, opts)
   end
 
   defp do_blocking_flush(state) do

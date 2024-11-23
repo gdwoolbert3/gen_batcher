@@ -5,6 +5,8 @@ defmodule GenBatcher.TestHelpers do
 
   import ExUnit.Callbacks, only: [start_supervised: 1]
 
+  alias GenBatcher.TestBatcher
+
   ################################
   # Public API
   ################################
@@ -62,47 +64,32 @@ defmodule GenBatcher.TestHelpers do
   @spec start_gen_batcher :: {:ok, GenBatcher.t()} | {:error, term()}
   @spec start_gen_batcher(keyword()) :: {:ok, GenBatcher.t()} | {:error, term()}
   def start_gen_batcher(opts \\ []) do
-    opts = Keyword.put_new_lazy(opts, :handle_flush, &flush_callback/0)
-    do_start_gen_batcher({GenBatcher, opts})
-  end
+    opts = Keyword.put(opts, :flush_meta, self())
 
-  ################################
-  # Private API
-  ################################
-
-  defp flush_callback do
-    destination = self()
-
-    fn items, info ->
-      flusher = self()
-      partition = partition_pid(flusher)
-      send(destination, {items, info, partition, flusher})
-    end
-  end
-
-  defp partition_pid(flusher) do
-    case Process.get(:"$callers") do
-      [partition | _] -> partition
-      _ -> flusher
-    end
-  end
-
-  defp do_start_gen_batcher(child_spec) do
-    case start_supervised(child_spec) do
+    case start_supervised({TestBatcher, opts}) do
       {:ok, pid} -> process_name(pid)
       {:error, {{_, {_, _, reason}}, _}} -> {:error, reason}
       {:error, {reason, _}} -> {:error, reason}
     end
   end
 
-  defp process_name(pid) do
-    # TODO(Gordon) - handle case where process doesn't have a registered name
-    # Access.get/2 maybe?
+  ################################
+  # Private API
+  ################################
+
+  defp process_name(pid) when is_pid(pid) do
     pid
     |> Process.info()
     |> case do
       nil -> {:error, :not_found}
-      info -> {:ok, Keyword.get(info, :registered_name)}
+      info -> process_name(info)
+    end
+  end
+
+  defp process_name(info) do
+    case Keyword.get(info, :registered_name) do
+      nil -> {:error, :no_name}
+      name -> {:ok, name}
     end
   end
 end

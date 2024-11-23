@@ -17,16 +17,20 @@ defmodule GenBatcherTest do
   # end
 
   # TODO(Gordon) - document general test workflow (ie sending test process a message from flusher)
-  # TODO(Gordon) - more robust replacement for `refute_received` calls
-  # :erlang.process_info(self(), :messages)
 
   describe "start_link/2" do
     test "will start a GenBatcher" do
-      assert start_gen_batcher() == {:ok, GenBatcher}
+      assert start_gen_batcher() == {:ok, TestBatcher}
+    end
+
+    test "will start a GenBatcher without an implementation module" do
+      opts = [handle_flush: fn _, _ -> IO.puts("Flushed") end]
+
+      assert {:ok, _} = start_supervised({GenBatcher, opts})
     end
 
     test "will start a partitioned GenBatcher" do
-      assert start_gen_batcher(partitions: 2) == {:ok, GenBatcher}
+      assert start_gen_batcher(partitions: 2) == {:ok, TestBatcher}
     end
 
     test "will start a GenBatcher with the provided name" do
@@ -37,7 +41,7 @@ defmodule GenBatcherTest do
       opts = [flush_trigger: {:size, 2}, partitions: 2]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
-      assert_receive {["foo", "baz"], %Info{}, partition, flusher}
+      assert_receive {["foo", "baz"], %Info{}, true, partition, flusher}
       assert partition_empty?(gen_batcher, 0)
       refute partition == flusher
 
@@ -54,7 +58,7 @@ defmodule GenBatcherTest do
       opts = [flush_trigger: {:static_custom, 0, handle_insert}]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
-      assert_receive {["foo", "bar", "baz"], %Info{}, partition, flusher}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, flusher}
       assert partition_empty?(gen_batcher, 0)
       refute partition == flusher
     end
@@ -71,50 +75,39 @@ defmodule GenBatcherTest do
       opts = [flush_trigger: {:dynamic_custom, initial_acc, handle_insert}]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
-      assert_receive {["foo"], %Info{}, partition, flusher}
+      assert_receive {["foo"], %Info{}, true, partition, flusher}
       refute partition == flusher
-      assert_receive {["bar", "baz"], %Info{}, partition, flusher}
+      assert_receive {["bar", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
-    end
-
-    test "will start a GenBatcher from an implementation module" do
-      assert {:ok, _} = start_supervised({TestBatcher, flush_meta: self()})
-
-      seed_gen_batcher(TestBatcher)
-
-      assert_receive {["foo", "bar", "baz"], %Info{}, partition, flusher}
-      refute partition == flusher
     end
 
     test "will trigger a flush when batch timeout is exceeded" do
       opts = [batch_timeout: 50, flush_empty?: true]
 
       assert {:ok, gen_batcher} = start_gen_batcher(opts)
-      assert_receive {[], %Info{}, partition, flusher}
+      assert_receive {[], _, _, partition, flusher}
       assert partition_empty?(gen_batcher, 0)
       refute partition == flusher
     end
 
     test "will trigger a blocking flush" do
-      opts = [flush_trigger: {:size, 3}, blocking_flush?: true]
-
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
-      assert_receive {["foo", "bar", "baz"], %Info{}, partition, partition}
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(blocking_flush?: true)
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, partition}
       assert partition_empty?(gen_batcher, 0)
     end
 
     test "will not flush an empty batch" do
-      assert start_gen_batcher(batch_timeout: 50) == {:ok, GenBatcher}
+      assert start_gen_batcher(batch_timeout: 50) == {:ok, TestBatcher}
       refute_receive _, 150
     end
 
     test "will flush a GenBatcher on termination" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
 
       GenServer.stop(gen_batcher)
 
-      assert_received {["foo", "bar", "baz"], %Info{}, partition, partition}
+      assert_received {["foo", "bar", "baz"], %Info{}, false, partition, partition}
     end
 
     test "will flush a partitioned GenBatcher on termination" do
@@ -122,14 +115,14 @@ defmodule GenBatcherTest do
 
       GenServer.stop(gen_batcher)
 
-      assert_received {["foo", "baz"], _, partition, partition}
-      assert_received {["bar"], _, partition, partition}
+      assert_received {["foo", "baz"], %Info{}, false, partition, partition}
+      assert_received {["bar"], %Info{}, false, partition, partition}
     end
   end
 
   describe "dump/2" do
     test "will dump a GenBatcher" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
       assert GenBatcher.dump(gen_batcher) == [["foo", "bar", "baz"]]
       assert empty?(gen_batcher)
     end
@@ -143,7 +136,7 @@ defmodule GenBatcherTest do
 
   describe "dump_partition/3" do
     test "will dump a GenBatcher partition" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
       assert GenBatcher.dump_partition(gen_batcher, 0) == ["foo", "bar", "baz"]
       assert partition_empty?(gen_batcher, 0)
     end
@@ -158,41 +151,45 @@ defmodule GenBatcherTest do
 
   describe "flush/2" do
     test "will asynchronously flush a GenBatcher" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
       assert GenBatcher.flush(gen_batcher) == :ok
-      assert_receive {["foo", "bar", "baz"], _, partition, flusher}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert empty?(gen_batcher)
     end
 
     test "will asynchronously flush a GenBatcher in a blocking manner" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(blocking_flush?: true)
+      opts = [flush_trigger: nil, blocking_flush?: true]
+
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert GenBatcher.flush(gen_batcher) == :ok
-      assert_receive {["foo", "bar", "baz"], _, partition, partition}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, partition}
       assert empty?(gen_batcher)
     end
 
     test "will synchronously flush a GenBatcher" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
       assert GenBatcher.flush(gen_batcher, async?: false) == :ok
-      assert_received {["foo", "bar", "baz"], _, partition, flusher}
+      assert_received {["foo", "bar", "baz"], %Info{}, false, partition, flusher}
       refute partition == flusher
       assert empty?(gen_batcher)
     end
 
     test "will synchronously flush a GenBatcher in a blocking manner" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(blocking_flush?: true)
+      opts = [flush_trigger: nil, blocking_flush?: true]
+
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert GenBatcher.flush(gen_batcher, async?: false) == :ok
-      assert_received {["foo", "bar", "baz"], _, partition, partition}
+      assert_received {["foo", "bar", "baz"], %Info{}, false, partition, partition}
       assert empty?(gen_batcher)
     end
 
     test "will asynchronously flush a partitioned GenBatcher" do
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(partitions: 2)
       assert GenBatcher.flush(gen_batcher) == :ok
-      assert_receive {["foo", "baz"], _, partition, flusher}
+      assert_receive {["foo", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
-      assert_receive {["bar"], _, partition, flusher}
+      assert_receive {["bar"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert empty?(gen_batcher)
     end
@@ -200,9 +197,9 @@ defmodule GenBatcherTest do
     test "will synchronously flush a partitioned GenBatcher in parallel" do
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(partitions: 2)
       assert GenBatcher.flush(gen_batcher, async?: false, concurrent?: true) == :ok
-      assert_received {["foo", "baz"], _, partition, flusher}
+      assert_received {["foo", "baz"], %Info{}, false, partition, flusher}
       refute partition == flusher
-      assert_received {["bar"], _, partition, flusher}
+      assert_received {["bar"], %Info{}, false, partition, flusher}
       refute partition == flusher
       assert empty?(gen_batcher)
     end
@@ -210,39 +207,43 @@ defmodule GenBatcherTest do
 
   describe "flush_partition/3" do
     test "will asynchronously flush a GenBatcher partition" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
       assert GenBatcher.flush_partition(gen_batcher, 0) == :ok
-      assert_receive {["foo", "bar", "baz"], _, partition, flusher}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
     end
 
     test "will asynchronously flush a GenBatcher partition in a blocking manner" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(blocking_flush?: true)
+      opts = [flush_trigger: nil, blocking_flush?: true]
+
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert GenBatcher.flush_partition(gen_batcher, 0) == :ok
-      assert_receive {["foo", "bar", "baz"], _, partition, partition}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, partition}
       assert partition_empty?(gen_batcher, 0)
     end
 
     test "will synchronously flush a GenBatcher partition" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher()
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(flush_trigger: nil)
       assert GenBatcher.flush_partition(gen_batcher, 0, async?: false) == :ok
-      assert_received {["foo", "bar", "baz"], _, partition, flusher}
+      assert_received {["foo", "bar", "baz"], %Info{}, false, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
     end
 
     test "will synchronously flush a GenBatcher partition in a blocking manner" do
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(blocking_flush?: true)
+      opts = [flush_trigger: nil, blocking_flush?: true]
+
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert GenBatcher.flush_partition(gen_batcher, 0, async?: false) == :ok
-      assert_received {["foo", "bar", "baz"], _, partition, partition}
+      assert_received {["foo", "bar", "baz"], %Info{}, false, partition, partition}
       assert partition_empty?(gen_batcher, 0)
     end
 
     test "will flush a partitioned GenBatcher's partition" do
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(partitions: 2)
       assert GenBatcher.flush_partition(gen_batcher, 0) == :ok
-      assert_receive {["foo", "baz"], _, partition, flusher}
+      assert_receive {["foo", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
       assert partition_size(gen_batcher, 1) == 1
@@ -251,19 +252,19 @@ defmodule GenBatcherTest do
 
   describe "info/2" do
     test "will return information about a GenBatcher" do
-      opts = [batch_timeout: 1_000, flush_meta: "meta"]
+      opts = [batch_timeout: 1_000, flush_trigger: nil]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert [%Info{} = info] = GenBatcher.info(gen_batcher)
-      assert info.flush_meta == "meta"
       assert info.batch_timer <= 1_000
       assert info.batch_duration >= 0
       assert info.batch_size == 3
       assert info.partition == 0
+      assert is_pid(info.flush_meta)
     end
 
     test "will return information about a partitioned GenBatcher" do
-      opts = [batch_timeout: 1_000, flush_meta: "meta", partitions: 2]
+      opts = [batch_timeout: 1_000, partitions: 2]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
 
@@ -274,10 +275,10 @@ defmodule GenBatcherTest do
       |> Enum.each(fn {info, size, partition} ->
         assert %Info{} = info
         assert info.partition == partition
-        assert info.flush_meta == "meta"
         assert info.batch_timer <= 1_000
         assert info.batch_duration >= 0
         assert info.batch_size == size
+        assert is_pid(info.flush_meta)
       end)
     end
   end
@@ -295,7 +296,7 @@ defmodule GenBatcherTest do
       assert partition_size(gen_batcher, 0) == 1
       assert partition_empty?(gen_batcher, 1)
 
-      # Ensure partitioner works as expected
+      # Ensures partitioner works as expected
       assert GenBatcher.insert(gen_batcher, "bar") == :ok
       assert partition_size(gen_batcher, 0) == 1
       assert partition_size(gen_batcher, 1) == 1
@@ -307,7 +308,7 @@ defmodule GenBatcherTest do
       assert partition_empty?(gen_batcher, 0)
       assert partition_size(gen_batcher, 1) == 1
 
-      # Ensure passing partition key doesn't increment partitioner
+      # Ensures passing partition key doesn't increment partitioner
       assert GenBatcher.insert(gen_batcher, "bar") == :ok
       assert partition_size(gen_batcher, 0) == 1
       assert partition_size(gen_batcher, 1) == 1
@@ -318,15 +319,16 @@ defmodule GenBatcherTest do
     test "will insert items into a GenBatcher" do
       items = ["foo", "bar", "baz"]
 
-      assert {:ok, gen_batcher} = start_gen_batcher()
+      assert {:ok, gen_batcher} = start_gen_batcher(flush_trigger: nil)
       assert GenBatcher.insert_all(gen_batcher, items) == 3
       assert partition_size(gen_batcher, 0) == 3
     end
 
     test "will insert items into a partitioned GenBatcher" do
+      opts = [flush_trigger: nil, partitions: 2]
       items = ["foo", "bar", "baz"]
 
-      assert {:ok, gen_batcher} = start_gen_batcher(partitions: 2)
+      assert {:ok, gen_batcher} = start_gen_batcher(opts)
       assert GenBatcher.insert_all(gen_batcher, items) == 3
       assert partition_size(gen_batcher, 0) == 3
       assert partition_empty?(gen_batcher, 1)
@@ -338,9 +340,10 @@ defmodule GenBatcherTest do
     end
 
     test "will insert items into a specific GenBatcher partition" do
+      opts = [flush_trigger: nil, partitions: 2]
       items = ["foo", "bar", "baz"]
 
-      assert {:ok, gen_batcher} = start_gen_batcher(partitions: 2)
+      assert {:ok, gen_batcher} = start_gen_batcher(opts)
       assert GenBatcher.insert_all(gen_batcher, items, partition_key: 1) == 3
       assert partition_empty?(gen_batcher, 0)
       assert partition_size(gen_batcher, 1) == 3
@@ -356,7 +359,7 @@ defmodule GenBatcherTest do
 
       assert {:ok, gen_batcher} = start_gen_batcher(flush_trigger: {:size, 2})
       assert GenBatcher.insert_all(gen_batcher, items) == 3
-      assert_receive {["foo", "bar"], _, partition, flusher}
+      assert_receive {["foo", "bar"], %Info{}, false, partition, flusher}
       refute partition == flusher
       assert partition_size(gen_batcher, 0) == 1
     end
@@ -367,19 +370,16 @@ defmodule GenBatcherTest do
 
       assert {:ok, gen_batcher} = start_gen_batcher(opts)
       assert GenBatcher.insert_all(gen_batcher, items) == 3
-      assert_received {["foo", "bar"], _, partition, partition}
+      assert_received {["foo", "bar"], %Info{}, false, partition, partition}
       assert partition_size(gen_batcher, 0) == 1
     end
 
     test "will trigger a flush if conditions are met after inserting items" do
       items = ["foo", "bar", "baz"]
 
-      assert {:ok, gen_batcher} = start_gen_batcher(flush_trigger: {:size, 3})
+      assert {:ok, gen_batcher} = start_gen_batcher()
       assert GenBatcher.insert_all(gen_batcher, items) == 3
-
-      # Ensure that the flush is asynchronous to the caller
-      refute_received _
-      assert_receive {["foo", "bar", "baz"], _, partition, flusher}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
     end
@@ -389,10 +389,7 @@ defmodule GenBatcherTest do
 
       assert {:ok, gen_batcher} = start_gen_batcher(flush_trigger: {:size, 2})
       assert GenBatcher.insert_all(gen_batcher, items, safe?: false) == 3
-
-      # Ensure that the flush is asynchronous to the caller
-      refute_received _
-      assert_receive {["foo", "bar", "baz"], _, partition, flusher}
+      assert_receive {["foo", "bar", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
     end
@@ -400,33 +397,33 @@ defmodule GenBatcherTest do
 
   describe "partition_info/3" do
     test "will return information about a GenBatcher partition" do
-      opts = [batch_timeout: 500, flush_meta: "meta"]
+      opts = [batch_timeout: 500, flush_trigger: nil]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
 
       info = GenBatcher.partition_info(gen_batcher, 0)
 
       assert %Info{} = info
-      assert info.flush_meta == "meta"
       assert info.batch_duration >= 0
       assert info.batch_timer <= 500
       assert info.batch_size == 3
       assert info.partition == 0
+      assert is_pid(info.flush_meta)
     end
 
     test "will return information about a partitioned GenBatcher's partition" do
-      opts = [batch_timeout: 500, flush_meta: "meta", partitions: 2]
+      opts = [batch_timeout: 500, partitions: 2]
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
 
       info = GenBatcher.partition_info(gen_batcher, 0)
 
       assert %Info{} = info
-      assert info.flush_meta == "meta"
       assert info.batch_duration >= 0
       assert info.batch_timer <= 500
       assert info.batch_size == 2
       assert info.partition == 0
+      assert is_pid(info.flush_meta)
     end
   end
 end
