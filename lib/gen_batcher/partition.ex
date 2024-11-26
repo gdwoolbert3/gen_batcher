@@ -6,8 +6,6 @@ defmodule GenBatcher.Partition do
   alias GenBatcher.Partition.Info
   alias GenBatcher.Partition.State
 
-  # TODO(Gordon) - what if task supervisor fails to start process?
-
   ################################
   # Public API
   ################################
@@ -157,9 +155,9 @@ defmodule GenBatcher.Partition do
   @spec handle_continue(term(), State.t()) ::
           {:noreply, State.t()} | {:noreply, State.t(), {:continue, :refresh}}
   def handle_continue(:flush, state) do
-    # Stores the timestamp of the last deferred flush. This is done exclusively
+    # Stores the flush ref of the last deferred flush. This is done exclusively
     # for testing, hence the usage of the process dictionary.
-    Process.put(:last_deferred_flush, now())
+    Process.put(:last_deferred_flush, state.flush_ref)
     do_flush(state)
     {:noreply, state, {:continue, :refresh}}
   end
@@ -193,6 +191,7 @@ defmodule GenBatcher.Partition do
     refresh = %{
       timer: refresh_timer(state),
       acc: refresh_acc(state),
+      flush_ref: make_ref(),
       batch_start: now(),
       size: 0,
       items: []
@@ -202,7 +201,7 @@ defmodule GenBatcher.Partition do
   end
 
   defp refresh_timer(%State{batch_timeout: :infinity}), do: nil
-  defp refresh_timer(%State{timer: nil} = state), do: schedule_next_flush(state)
+  defp refresh_timer(state) when is_nil(state.timer), do: schedule_next_flush(state)
 
   defp refresh_timer(state) do
     Process.cancel_timer(state.timer)
@@ -237,7 +236,7 @@ defmodule GenBatcher.Partition do
 
   defp do_flush(%State{items: [], flush_empty?: false}), do: :ok
 
-  defp do_flush(%State{blocking_flush?: false} = state) do
+  defp do_flush(state) when not state.blocking_flush? do
     do_non_blocking_flush(state)
   end
 
@@ -263,8 +262,8 @@ defmodule GenBatcher.Partition do
   defp do_info(state) do
     %Info{
       batch_duration: now() - state.batch_start,
-      batch_timer: next_flush(state),
       flush_meta: state.flush_meta,
+      flush_ref: state.flush_ref,
       partition: state.partition,
       batch_size: state.size
     }
@@ -273,10 +272,4 @@ defmodule GenBatcher.Partition do
   defp items(state), do: Enum.reverse(state.items)
 
   defp now, do: System.monotonic_time(:millisecond)
-
-  defp next_flush(%State{timer: nil}), do: nil
-
-  defp next_flush(state) do
-    with false <- Process.read_timer(state.timer), do: 0
-  end
 end

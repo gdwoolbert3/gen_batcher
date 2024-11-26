@@ -1,22 +1,10 @@
 defmodule GenBatcherTest do
   use ExUnit.Case, async: true
-  # TODO(Gordon) - doctest GenBatcher
 
   import GenBatcher.TestHelpers
 
   alias GenBatcher.Partition.Info
   alias GenBatcher.TestBatcher
-
-  # setup %{test_type: test_type} do
-  #   if test_type == :doctest do
-  #     opts = [flush_callback: fn _, _ -> :ok end, partitions: 2]
-  #     if start_ex_buffer(opts) == {:ok, ExBuffer}, do: :ok
-  #   else
-  #     :ok
-  #   end
-  # end
-
-  # TODO(Gordon) - document general test workflow (ie sending test process a message from flusher)
 
   describe "start_link/2" do
     test "will start a GenBatcher" do
@@ -256,7 +244,6 @@ defmodule GenBatcherTest do
 
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert [%Info{} = info] = GenBatcher.info(gen_batcher)
-      assert info.batch_timer <= 1_000
       assert info.batch_duration >= 0
       assert info.batch_size == 3
       assert info.partition == 0
@@ -275,7 +262,6 @@ defmodule GenBatcherTest do
       |> Enum.each(fn {info, size, partition} ->
         assert %Info{} = info
         assert info.partition == partition
-        assert info.batch_timer <= 1_000
         assert info.batch_duration >= 0
         assert info.batch_size == size
         assert is_pid(info.flush_meta)
@@ -405,7 +391,6 @@ defmodule GenBatcherTest do
 
       assert %Info{} = info
       assert info.batch_duration >= 0
-      assert info.batch_timer <= 500
       assert info.batch_size == 3
       assert info.partition == 0
       assert is_pid(info.flush_meta)
@@ -420,7 +405,6 @@ defmodule GenBatcherTest do
 
       assert %Info{} = info
       assert info.batch_duration >= 0
-      assert info.batch_timer <= 500
       assert info.batch_size == 2
       assert info.partition == 0
       assert is_pid(info.flush_meta)

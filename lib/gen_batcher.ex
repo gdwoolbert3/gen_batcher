@@ -4,18 +4,11 @@ defmodule GenBatcher do
   a user-defined flush operation on those items once an item-based condition is
   met or a timeout is exceeded.
 
-  TODO(Gordon) - test module-only parameterization?
-  TODO(Gordon) - test the blocking default for flush
-  TODO(Gordon) - test flush_empty? behavior
   TODO(Gordon) - readme badges
   TODO(Gordon) - remove benchee dep
-  TODO(Gordon) - doctests?
 
   TODO(Gordon) - configure styler and other checks for CI
-  TODO(Gordon) - configure styler
   TODO(Gordon) - use partition supervisor for task supervisor?
-
-  TODO(Gordon) - add flush_empty? opt for manual flush function?
   """
 
   alias GenBatcher.Partition
@@ -70,7 +63,7 @@ defmodule GenBatcher do
 
   This callback is required.
   """
-  @callback handle_flush(list(), partition_info()) :: term()
+  @callback handle_flush(items :: list(), info :: partition_info()) :: term()
 
   @doc """
   The function invoked when an item is inserted into a `GenBatcher` partition.
@@ -84,11 +77,13 @@ defmodule GenBatcher do
   This callback is optional and the default implementation always returns
   `{:cont, acc}` where acc is the accumulator `t:term/0`.
   """
-  @callback handle_insert(term(), term()) :: {:cont, term()} | :flush
+  @callback handle_insert(item :: term(), acc :: term()) :: {:cont, term()} | :flush
 
   @doc """
-  The function invoked after a flush to generate the initial accumulator
-  `t:term/0`.
+  The function invoked to generate the initial accumulator `t:term/0`.
+
+  The initial accumulator is refreshed with this callback after every flush
+  operation.
 
   This callback is optional and the default implementation simply returns `nil`.
   """
@@ -154,7 +149,7 @@ defmodule GenBatcher do
         triggered.
 
       * `{:static_custom, init_acc, handle_insert}` where `init_acc` is a
-        `term/0` used as the inital accumulator and `handle_insert` is a
+        `t:term/0` used as the inital accumulator and `handle_insert` is a
         function invoked when an item is inserted into a partition. For more
         information, see `c:handle_insert/2`.
 
@@ -184,13 +179,13 @@ defmodule GenBatcher do
       used unless otherwise specified. Defaults to `GenBatcher`.
 
     * `:partitions` - An optional `t:pos_integer/0` denoting the number of
-      partitions. Defaults to `1`.
-      TODO(Gordon) - link to partitioning header
+      partitions. Defaults to `1`. For more information, see
+      [Partitioning](README.md#partitioning).
 
     * `:shutdown` - An optional `t:timeout/0` denoting the maximum amount of
       time (in ms) to allow flushes to finish on shutdown or `:brutal_kill` if
-      flushes should be stopped immediately. Defaults to `:infinity`.
-      TODO(Gordon) - link to shutdown header
+      flushes should be stopped immediately. Defaults to `:infinity`. For more
+      information, see [Shutdown](README.md#shutdown).
   """
   @spec start_link(module() | nil, keyword()) :: Supervisor.on_start()
   def start_link(module, opts) do
@@ -207,7 +202,7 @@ defmodule GenBatcher do
 
   @doc """
   Dumps the contents of all partitions for the given `GenBatcher` to a nested
-  list, bypassing flushes and refreshing the partitions.
+  list, bypassing flush operations and refreshing the partitions.
 
   The partitions' contents are returned in index order.
 
@@ -218,17 +213,8 @@ defmodule GenBatcher do
 
   A `GenBatcher` can be dumped with the following options:
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
-
-  ## Examples
-
-      iex> GenBatcher.insert(GenBatcher, "foo")
-      iex> GenBatcher.insert(GenBatcher, "bar")
-      iex> GenBatcher.insert(GenBatcher, "baz")
-      iex> GenBatcher.dump(GenBatcher)
-      [["foo", "baz"], ["bar"]]
   """
   @spec dump(t()) :: [list()]
   @spec dump(t(), keyword()) :: [list()]
@@ -250,7 +236,7 @@ defmodule GenBatcher do
 
   @doc """
   Dumps the contents of the given `GenBatcher` partition to a list, bypassing a
-  flush and refreshing the partition.
+  flush operation and refreshing the partition.
 
   While this functionality may occasionally be desriable in a production
   environment, it is intended to be used primarily for testing and debugging.
@@ -259,8 +245,7 @@ defmodule GenBatcher do
 
   A `GenBatcher` partition can be dumped with the following options:
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec dump_partition(t(), partition_key()) :: list()
@@ -297,8 +282,7 @@ defmodule GenBatcher do
       `false` and the given `GenBatcher` has more than 1 partition. Defaults to
       `true`.
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec flush(t()) :: :ok
@@ -351,8 +335,7 @@ defmodule GenBatcher do
     * `:async?` - An optional `t:boolean/0` denoting whether or not the
       partition should be flushed asynchronously. Defaults to `true`.
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec flush_partition(t(), partition_key()) :: :ok
@@ -389,8 +372,7 @@ defmodule GenBatcher do
 
   Information about a `GenBatcher` can be retrieved with the following options:
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec info(t()) :: [partition_info()]
@@ -420,10 +402,8 @@ defmodule GenBatcher do
     * `:partition_key` - An optional `t:partition_key/0` denoting which
       partition to insert the item into. If not specified, the partition is
       decided by the round-robin partitioner.
-      TODO(Gordon) - link to partition doc
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec insert(t(), term()) :: :ok
@@ -462,7 +442,6 @@ defmodule GenBatcher do
     * `:partition_key` - An optional `t:partition_key/0` denoting which
       partition to insert the items into. If not specified, the partition is
       decided by the round-robin partitioner.
-      TODO(Gordon) - link to partition doc
 
     * `:safe?` - An optional `t:boolean/0` denoting whether or not to flush
       immediately after a flush condition is met. If `true` and a flush
@@ -472,8 +451,7 @@ defmodule GenBatcher do
       impossible batches. Only relevant if a flush would be triggered before all
       items are inserted. Defaults to `true`.
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec insert_all(t(), Enumerable.t()) :: non_neg_integer()
@@ -511,8 +489,7 @@ defmodule GenBatcher do
   Information about a `GenBatcher` partition can be retrieved with the following
   options:
 
-    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation. For
-      more information, see [Operation Timeouts](README.md#operation-timeouts).
+    * `:timeout` - An optional `t:timeout/0` (in ms) for this operation.
       Defaults to `:infinity`.
   """
   @spec partition_info(t(), partition_key()) :: partition_info()

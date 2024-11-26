@@ -1,6 +1,12 @@
 defmodule GenBatcher.TestBatcher do
   @moduledoc """
-  TODO(Gordon) - Add this
+  A `GenBatcher` implementation designed for use in tests.
+
+  This module implements all of the `GenBatcher` callbacks in a way that mimics
+  a `{:size, 3}` flush trigger.
+
+  The flush operation sends a message to the pid stored under the `:flush_meta`
+  key. For more information on the shape of the message, see `flush/3`.
   """
 
   use GenBatcher
@@ -12,7 +18,7 @@ defmodule GenBatcher.TestBatcher do
   ################################
 
   @doc """
-  TODO(Gordon) - Add this
+  Starts the `TestBatcher` process.
   """
   @spec start_link :: Supervisor.on_start()
   @spec start_link(keyword()) :: Supervisor.on_start()
@@ -21,13 +27,26 @@ defmodule GenBatcher.TestBatcher do
   end
 
   @doc """
-  TODO(Gordon) - Add this
+  Sends a message to the given destination.
+
+  The message shape is `{items, info, deferred?, partition, flusher}`:
+
+    * `items` - the given `t:list/0` of items.
+
+    * `info` - the given `t:GenBatcher.partition_info/0`.
+
+    * `deferred?` - a `t:boolean/0` denoting whether or not the current flush
+      was deferred.
+
+    * `partition` - the `t:pid/0` of the flushing partition.
+
+    * `flusher` - the `t:pid/0` of the flushing process.
   """
   @spec flush(list(), GenBatcher.partition_info(), pid()) :: :ok
   def flush(items, info, destination) do
     flusher = self()
     partition = partition_pid(flusher)
-    deferred? = deferred_flush?(partition)
+    deferred? = deferred_flush?(info, partition)
     send(destination, {items, info, deferred?, partition, flusher})
     :ok
   end
@@ -65,14 +84,18 @@ defmodule GenBatcher.TestBatcher do
     end
   end
 
-  defp deferred_flush?(partition) when partition == self() do
-    not is_nil(Process.get(:last_deferred_flush))
+  defp deferred_flush?(info, partition) do
+    last_deferred_flush(partition) == info.flush_ref
   end
 
-  defp deferred_flush?(partition) do
+  defp last_deferred_flush(partition) when partition == self() do
+    Process.get(:last_deferred_flush)
+  end
+
+  defp last_deferred_flush(partition) do
     {:status, _, _, [pdict | _]} = :sys.get_status(partition, :infinity)
-    Keyword.has_key?(pdict, :last_deferred_flush)
+    Keyword.get(pdict, :last_deferred_flush)
   catch
-    :exit, _ -> false
+    :exit, _ -> nil
   end
 end

@@ -4,33 +4,33 @@ Suggestions, Issues, and pull requests are welcome!
 
 ## Setup
 
-TODO(Gordon) - validate and update this page
-
-Realisitcally, this project will likely run fine on any relatively modern Erlang/Elixir version, but
-this project specifies the following language versions (see `.tool-versions`):
+Realisitcally, this project will likely run fine on any relatively modern Erlang
+and Elixir version, but this project specifies the following language versions
+(see `.tool-versions`):
 
 * Erlang OTP 26.2.5.1
 * Elixir 1.17.1
 
-One of the best ways to manage multiple Erlang/Elixir versions is [asdf](https://github.com/asdf-vm/asdf)
-version manager. If you're using `asdf-vm`, you can run the following commands to install the specified
-language versions:
+One of the best ways to manage multiple Erlang/Elixir versions is
+[asdf](https://github.com/asdf-vm/asdf) version manager. If you're using
+`asdf-vm`, you can run the following commands to install the specified language
+versions:
 
 ```bash
 asdf plugin-add erlang
-asdf install erlang 26.2.5.1
 asdf plugin-add elixir
-asdf install elixir 1.17.1-otp-26
+asdf install
 ```
 
-Once you have sufficient versions of Erlang and Elixir versions installed, you can setup the repo with the
-following command:
+Once you have sufficient versions of Erlang and Elixir versions installed, you
+can download the development dependencies:
 
 ```bash
-mix setup
+mix deps.get
 ```
 
-Assuming everything was done correctly, you should be able to successfully run the testing suite:
+Assuming everything was done correctly, you should be able to successfully run
+the testing suite:
 
 ```bash
 mix test
@@ -38,13 +38,19 @@ mix test
 
 ## Pull Request Process
 
-1. Ensure that your code is well-formatted and that all unit tests are passing (there is a GitHub workflow
-   that checks both).
-2. Ensure that any new functionality is well-documented in the function/module docs as well as in `README.md`
-   (if applicable).
-3. Increase any relevant version numbers if applicable. This project uses semantic versioning
-   ([SemVer](http://semver.org/)).
+1. Ensure that your code is well-formatted and that all unit tests are passing
+   (there is a GitHub workflow that checks both).
+2. Ensure that any new functionality is well-documented in the function/module
+   docs as well as in `README.md` (if applicable).
+3. Increase any relevant version numbers if applicable. This project uses
+   [semantic versioning](http://semver.org/).
 4. Pull Requests require merge approval from a code owner (enforced by GitHub).
+
+## Outstanding Tasks
+
+* Investigate using a `PartitionSupervisor` to start multiple `Task.Supervisor`
+  processes for the application (see `GenBatcher.Application`).
+* Investigate adding doctests to the `GenBatcher` module.
 
 ## Code of Conduct
 
@@ -115,5 +121,5 @@ members of the project's leadership.
 
 ### Attribution
 
-This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4,
-available at [http://contributor-covenant.org/version/1/4][version]
+This Code of Conduct is adapted from the [Contributor Covenant][homepage],
+version 1.4, available at [http://contributor-covenant.org/version/1/4][version]

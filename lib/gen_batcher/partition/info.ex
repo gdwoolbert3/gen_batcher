@@ -10,16 +10,12 @@ defmodule GenBatcher.Partition.Info do
 
     * `batch_size` - The number of items in the partition's current batch.
 
-    * `batch_timer` - The time (in ms) until the partition's next time-based
-      flush is triggered or `nil` if the `GenBatcher` does not have a
-      `batch_timeout`.
-
     * `flush_meta` - The `GenBatcher` `:flush_meta`.
 
     * `partition` - The partition's index.
   """
 
-  defstruct [:batch_duration, :batch_size, :batch_timer, :flush_meta, :partition]
+  defstruct [:batch_duration, :batch_size, :flush_meta, :flush_ref, :partition]
 
   ################################
   # Types
@@ -29,7 +25,6 @@ defmodule GenBatcher.Partition.Info do
   @type t :: %__MODULE__{
           batch_duration: non_neg_integer(),
           batch_size: non_neg_integer(),
-          batch_timer: non_neg_integer() | nil,
           flush_meta: term(),
           partition: non_neg_integer()
         }

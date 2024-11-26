@@ -10,6 +10,7 @@ defmodule GenBatcher.Partition.State do
     :flush_empty?,
     :blocking_flush?,
     :flush_meta,
+    :flush_ref,
     :handle_insert,
     :handle_flush,
     :initial_acc,

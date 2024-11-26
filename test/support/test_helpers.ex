@@ -1,6 +1,6 @@
 defmodule GenBatcher.TestHelpers do
   @moduledoc """
-  TODO(Gordon) - Add this
+  Helper functions for `GenBatcher` tests.
   """
 
   import ExUnit.Callbacks, only: [start_supervised: 1]
@@ -12,7 +12,7 @@ defmodule GenBatcher.TestHelpers do
   ################################
 
   @doc """
-  TODO(Gordon) - Add this
+  Returns whether or not all partitions for the given `GenBatcher` are empty.
   """
   @spec empty?(GenBatcher.t()) :: boolean()
   def empty?(gen_batcher) do
@@ -22,7 +22,7 @@ defmodule GenBatcher.TestHelpers do
   end
 
   @doc """
-  TODO(Gordon) - Add this
+  Returns whether or not the given `GenBatcher` partition is empty.
   """
   @spec partition_empty?(GenBatcher.t(), GenBatcher.partition_key()) :: boolean()
   def partition_empty?(gen_batcher, partition_key) do
@@ -30,7 +30,7 @@ defmodule GenBatcher.TestHelpers do
   end
 
   @doc """
-  TODO(Gordon) - add this
+  Returns the size of the given `GenBatcher` partition.
   """
   @spec partition_size(GenBatcher.t(), GenBatcher.partition_key()) :: non_neg_integer()
   def partition_size(gen_batcher, partition_key) do
@@ -39,7 +39,10 @@ defmodule GenBatcher.TestHelpers do
   end
 
   @doc """
-  TODO(Gordon) - Add this
+  Seeds the given `GenBatcher` with items.
+
+  More specifically, this function inserts the strings `"foo"`, `"bar"`, and
+  `"baz"` into the given `GenBatcher` via `GenBatcher.insert/3`.
   """
   @spec seed_gen_batcher(GenBatcher.t()) :: :ok
   def seed_gen_batcher(gen_batcher) do
@@ -47,7 +50,10 @@ defmodule GenBatcher.TestHelpers do
   end
 
   @doc """
-  TODO(Gordon) - Add this
+  Starts a supervised `GenBatcher` process with the given opts, seeds it with
+  items, and returns the registered name.
+
+  For more information, see `start_gen_batcher/1` and `seed_gen_batcher/1`.
   """
   @spec start_and_seed_gen_batcher :: {:ok, GenBatcher.t()} | {:error, term()}
   @spec start_and_seed_gen_batcher(keyword()) :: {:ok, GenBatcher.t()} | {:error, term()}
@@ -59,7 +65,12 @@ defmodule GenBatcher.TestHelpers do
   end
 
   @doc """
-  TODO(Gordon) - Add this
+  Starts a supervised `GenBatcher` process with the given opts and returns the
+  registered name. This function can be used instead of
+  `GenBatcher.start_link/2` in tests.
+
+  For more information on the default configuration, see
+  `GenBatcher.TestBatcher`.
   """
   @spec start_gen_batcher :: {:ok, GenBatcher.t()} | {:error, term()}
   @spec start_gen_batcher(keyword()) :: {:ok, GenBatcher.t()} | {:error, term()}
