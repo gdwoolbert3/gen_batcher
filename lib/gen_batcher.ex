@@ -9,6 +9,10 @@ defmodule GenBatcher do
 
   TODO(Gordon) - configure styler and other checks for CI
   TODO(Gordon) - use partition supervisor for task supervisor?
+
+  TODO(Gordon) - investigate sporadic failure for this test
+  "will start a GenBatcher with a dynamic custom trigger"
+  (deferred is incorrect)
   """
 
   alias GenBatcher.Partition

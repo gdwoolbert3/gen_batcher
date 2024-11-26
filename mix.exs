@@ -5,27 +5,12 @@ defmodule GenBatcher.MixProject do
 
   @version "1.0.0"
 
-  # TODO(Gordon) - Test coverage (see nimble_pool)
-  # TODO(Gordon) - configure docs
-  # TODO(Gordon) - configure package
   # TODO(Gordon) - relax elixir version requirement
 
-  def project do
-    [
-      app: :gen_batcher,
-      name: "GenBatcher",
-      version: @version,
-      elixir: "~> 1.17",
-      elixirc_paths: elixirc_paths(Mix.env()),
-      start_permanent: Mix.env() == :prod,
-      deps: deps(),
-      docs: docs(),
-      description: description(),
-      package: package()
-    ]
-  end
+  ################################
+  # Public API
+  ################################
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       mod: {GenBatcher.Application, []},
@@ -33,13 +18,63 @@ defmodule GenBatcher.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_), do: ["lib"]
+  def project do
+    [
+      aliases: aliases(),
+      app: :gen_batcher,
+      deps: deps(),
+      description: description(),
+      dialyzer: dialyzer(),
+      docs: docs(),
+      elixir: "~> 1.17",
+      elixirc_paths: elixirc_paths(Mix.env()),
+      name: "GenBatcher",
+      package: package(),
+      preferred_cli_env: preferred_cli_env(),
+      start_permanent: Mix.env() == :prod,
+      test_coverage: test_coverage(),
+      version: @version
+    ]
+  end
+
+  ################################
+  # Private API
+  ################################
+
+  defp aliases do
+    [
+      ci: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "credo --strict",
+        "test --cover --export-coverage default",
+        "dialyzer --format github",
+        "sobelow --config"
+      ]
+    ]
+  end
+
+  defp deps do
+    [
+      {:ex_doc, "~> 0.34.2", only: :dev, runtime: false},
+      {:credo, "~> 1.7.10", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.3", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.13.0", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.2.1", only: [:dev, :test], runtime: false}
+    ]
+  end
 
   defp description do
     """
     A simple and lightweight batching utility for Elixir.
     """
+  end
+
+  defp dialyzer do
+    [
+      plt_file: {:no_warn, "dialyzer/dialyzer.plt"},
+      plt_add_apps: [:ex_unit, :mix]
+    ]
   end
 
   defp docs do
@@ -51,6 +86,9 @@ defmodule GenBatcher.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
   defp package do
     [
       files: ["lib", "mix.exs", "README*", "LICENSE"],
@@ -60,14 +98,22 @@ defmodule GenBatcher.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
-  defp deps do
+  defp preferred_cli_env do
     [
-      {:ex_doc, "~> 0.34.2", only: :dev, runtime: false},
-      {:credo, "~> 1.7.10", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.3", only: [:dev, :test], runtime: false},
-      {:sobelow, "~> 0.13.0", only: [:dev, :test], runtime: false},
-      {:styler, "~> 1.2.1", only: [:dev, :test], runtime: false}
+      ci: :test
+    ]
+  end
+
+  defp test_coverage do
+    [
+      ignore_modules: [
+        GenBatcher.Application,
+        GenBatcher.Partition,
+        GenBatcher.Partition.Info,
+        GenBatcher.Partition.State,
+        GenBatcher.TestBatcher,
+        GenBatcher.TestHelpers
+      ]
     ]
   end
 end
