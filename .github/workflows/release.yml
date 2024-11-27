@@ -1,4 +1,4 @@
-name: Publish to Hex
+name: Release
 
 on:
   release:
@@ -18,6 +18,21 @@ jobs:
         with:
           version-type: strict
           version-file: .tool-versions
+
+      - name: Restore the cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            deps
+            _build
+            dialyzer
+          key: |
+            ${{ runner.os }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}-mixlockhash-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}-mixlockhash-
+      
+      - name: Get dependencies
+        run: mix deps.get
 
       - name: Publish
         run: |
