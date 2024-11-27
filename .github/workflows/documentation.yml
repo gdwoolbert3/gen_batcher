@@ -1,12 +1,11 @@
-name: Release
+name: Deploy
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
 
 jobs:
   publish:
-    name: Publish Package to Hex
+    name: Publish Documentation to Hex
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,9 +32,9 @@ jobs:
       
       - name: Get dependencies
         run: mix deps.get
-
+      
       - name: Publish
         run: |
-          mix hex.publish --yes
+          mix hex.publish docs
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}

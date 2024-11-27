@@ -3,16 +3,6 @@ defmodule GenBatcher do
   A `GenBatcher` is a process that maintains a collection of items and performs
   a user-defined flush operation on those items once an item-based condition is
   met or a timeout is exceeded.
-
-  TODO(Gordon) - readme badges
-  TODO(Gordon) - remove benchee dep
-
-  TODO(Gordon) - configure styler and other checks for CI
-  TODO(Gordon) - use partition supervisor for task supervisor?
-
-  TODO(Gordon) - investigate sporadic failure for this test
-  "will start a GenBatcher with a dynamic custom trigger"
-  (deferred is incorrect)
   """
 
   alias GenBatcher.Partition
