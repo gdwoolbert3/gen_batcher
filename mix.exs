@@ -5,8 +5,6 @@ defmodule GenBatcher.MixProject do
 
   @version "1.0.0"
 
-  # TODO(Gordon) - relax elixir version requirement
-
   ################################
   # Public API
   ################################

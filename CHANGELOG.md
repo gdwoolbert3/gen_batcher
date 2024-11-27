@@ -10,4 +10,5 @@ All notable changes to this project will be documented in this file.
 
 ### Links
 
-TODO(Gordon) - Add these
+* [GitHub](https://github.com/gdwoolbert3/gen_batcher/releases/tag/v1.0.0)
+* [HexDocs](https://hexdocs.pm/gen_batcher/1.0.0/readme.html)
