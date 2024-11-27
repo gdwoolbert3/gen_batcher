@@ -65,15 +65,57 @@
       #     {Credo.Check.Design.DuplicatedCode, false}
       #
       checks: %{
+        enabled: [
+          {Credo.Check.Consistency.ExceptionNames, []},
+          {Credo.Check.Consistency.LineEndings, []},
+          {Credo.Check.Consistency.SpaceAroundOperators, []},
+          {Credo.Check.Consistency.SpaceInParentheses, []},
+          {Credo.Check.Consistency.TabsOrSpaces, []},
+          {Credo.Check.Design.TagFIXME, []},
+          {Credo.Check.Design.TagTODO, [exit_status: 2]},
+          {Credo.Check.Readability.FunctionNames, []},
+          {Credo.Check.Readability.MaxLineLength, [priority: :low, max_length: 120]},
+          {Credo.Check.Readability.ModuleAttributeNames, []},
+          {Credo.Check.Readability.ModuleNames, []},
+          {Credo.Check.Readability.ParenthesesInCondition, []},
+          {Credo.Check.Readability.PredicateFunctionNames, []},
+          {Credo.Check.Readability.RedundantBlankLines, []},
+          {Credo.Check.Readability.Semicolons, []},
+          {Credo.Check.Readability.SpaceAfterCommas, []},
+          {Credo.Check.Readability.TrailingBlankLine, []},
+          {Credo.Check.Readability.TrailingWhiteSpace, []},
+          {Credo.Check.Readability.VariableNames, []},
+          {Credo.Check.Refactor.Apply, []},
+          {Credo.Check.Refactor.CyclomaticComplexity, []},
+          {Credo.Check.Refactor.FilterFilter, []},
+          {Credo.Check.Refactor.FunctionArity, []},
+          {Credo.Check.Refactor.LongQuoteBlocks, []},
+          {Credo.Check.Refactor.MatchInCondition, []},
+          {Credo.Check.Refactor.Nesting, []},
+          {Credo.Check.Refactor.RejectReject, []},
+          {Credo.Check.Warning.ApplicationConfigInModuleAttribute, []},
+          {Credo.Check.Warning.BoolOperationOnSameValues, []},
+          {Credo.Check.Warning.Dbg, []},
+          {Credo.Check.Warning.ExpensiveEmptyEnumCheck, []},
+          {Credo.Check.Warning.IExPry, []},
+          {Credo.Check.Warning.IoInspect, []},
+          {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig, []},
+          {Credo.Check.Warning.OperationOnSameValues, []},
+          {Credo.Check.Warning.OperationWithConstantResult, []},
+          {Credo.Check.Warning.RaiseInsideRescue, []},
+          {Credo.Check.Warning.SpecWithStruct, []},
+          {Credo.Check.Warning.UnsafeExec, []},
+          {Credo.Check.Warning.UnusedEnumOperation, []},
+          {Credo.Check.Warning.UnusedFileOperation, []},
+          {Credo.Check.Warning.UnusedKeywordOperation, []},
+          {Credo.Check.Warning.UnusedListOperation, []},
+          {Credo.Check.Warning.UnusedPathOperation, []},
+          {Credo.Check.Warning.UnusedRegexOperation, []},
+          {Credo.Check.Warning.UnusedStringOperation, []},
+          {Credo.Check.Warning.UnusedTupleOperation, []},
+          {Credo.Check.Warning.WrongTestFileExtension, []}
+        ],
         disabled: [
-          #
-          # Checks scheduled for next check update (opt-in for now)
-          {Credo.Check.Refactor.UtcNowTruncate, []},
-
-          #
-          # Controversial and experimental checks (opt-in, just move the check to `:enabled`
-          #   and be sure to use `mix credo --strict` to see low priority checks)
-          #
           {Credo.Check.Consistency.MultiAliasImportRequireUse, false},
           {Credo.Check.Consistency.ParameterPatternMatching, false},
           {Credo.Check.Consistency.UnusedVariableNames, []},
@@ -122,6 +164,7 @@
           {Credo.Check.Refactor.RedundantWithClauseResult, false},
           {Credo.Check.Refactor.RejectFilter, []},
           {Credo.Check.Refactor.UnlessWithElse, false},
+          {Credo.Check.Refactor.UtcNowTruncate, []},
           {Credo.Check.Refactor.VariableRebinding, []},
           {Credo.Check.Refactor.WithClauses, false},
           {Credo.Check.Warning.LazyLogging, []},
