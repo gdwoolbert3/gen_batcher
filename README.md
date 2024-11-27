@@ -1,5 +1,8 @@
 # GenBatcher
 
+![CI](https://github.com/gdwoolbert3/gen_batcher/actions/workflows/ci.yml/badge.svg)
+[![Package](https://img.shields.io/hexpm/v/gen_batcher.svg)](https://hex.pm/packages/gen_batcher)
+
 `GenBatcher` is a simple and lightweight batching utility for Elixir.
 
 ## Installation
@@ -17,7 +20,7 @@ end
 
 ## Documentation
 
-TODO(Gordon) - Add this once published
+For additional documentation, see [HexDocs](https://hexdocs.pm/gen_batcher/readme.html).
 
 ## Usage
 
@@ -132,7 +135,7 @@ triggers. [For example](#behaviour-example), these callbacks can be used to
 trigger a flush based on byte size.
 
 In cases where an item-based flush trigger is temporarily delayed (ie
-`GenBatcher.insert_all/3`), the `GenBatcher.handle_insert/2` callback will not
+`GenBatcher.insert_all/3`), the `c:GenBatcher.handle_insert/2` callback will not
 be called until after a flush operation is triggered. This means that the
 accumulator term is guaranteed to be in a valid state whenever this callback is
 invoked.
@@ -150,11 +153,12 @@ partitioning strategies.
 
 All of a `GenBatcher`'s partitions utilize the same flush conditions. This can
 occasionally lead to bursts of flush operations being triggered at around the
-same time. The `GenBatcher.initial_acc/0` callback can be leveraged to "jitter"
-item-based flush triggers in order to "desync" flush operations and mitigate
-this issue. For example, the `GenBatcher` below enforces an absolute maximum
-size of 1,000 items but randomly assigns each partition a maximum size between
-901 and 1,000 items:
+
+same time. The `c:GenBatcher.initial_acc/0` callback can be leveraged to
+"jitter" item-based flush triggers in order to "desync" flush operations and
+mitigate this issue. For example, the `GenBatcher` below enforces an absolute
+maximum size of 1,000 items but randomly assigns each partition a maximum size
+between 901 and 1,000 items:
 
 ```elixir
 defmodule MyJitteredGenBatcher do
