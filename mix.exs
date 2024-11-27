@@ -54,7 +54,7 @@ defmodule GenBatcher.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.34.2", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.35.1", only: :dev, runtime: false},
       {:credo, "~> 1.7.10", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4.3", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.13.0", only: [:dev, :test], runtime: false},
