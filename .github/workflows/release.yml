@@ -1,0 +1,26 @@
+name: Publish to Hex
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: Publish Package to Hex
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Elixir and Erlang versions
+        uses: erlef/setup-beam@v1
+        id: setup-elixir
+        with:
+          version-type: strict
+          version-file: .tool-versions
+
+      - name: Publish
+        run: |
+          mix hex.publish --replace --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
