@@ -211,7 +211,7 @@ defmodule GenBatcher.Partition do
   defp schedule_next_flush(state) do
     # We use `:erlang.start_timer/3` to include the timer ref in the message.
     # This is important for handling race conditions from near-simultaneous
-    # flush conditions.
+    # flush triggers.
     :erlang.start_timer(state.batch_timeout, self(), :flush)
   end
 

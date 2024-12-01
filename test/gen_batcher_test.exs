@@ -62,9 +62,17 @@ defmodule GenBatcherTest do
       initial_acc = fn -> :atomics.add_get(atomics_ref, 1, 1) end
       opts = [flush_trigger: {:dynamic_custom, initial_acc, handle_insert}]
 
-      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
+      # Refrain from using `start_and_seed_gen_batcher/1` to avoid race
+      # conditions from near near-simultaneous flush triggers.
+      assert {:ok, gen_batcher} = start_gen_batcher(opts)
+
+      GenBatcher.insert(gen_batcher, "foo")
+
       assert_receive {["foo"], %Info{}, true, partition, flusher}
       refute partition == flusher
+
+      GenBatcher.insert_all(gen_batcher, ["bar", "baz"])
+
       assert_receive {["bar", "baz"], %Info{}, true, partition, flusher}
       refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
