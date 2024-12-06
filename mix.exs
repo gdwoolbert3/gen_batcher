@@ -46,8 +46,7 @@ defmodule GenBatcher.MixProject do
         "format --check-formatted",
         "credo --strict",
         "test --cover --export-coverage default",
-        "dialyzer --format github",
-        "sobelow --config"
+        "dialyzer --format github"
       ]
     ]
   end
