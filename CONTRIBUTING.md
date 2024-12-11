@@ -30,7 +30,7 @@ mix deps.get
 ```
 
 Assuming everything was done correctly, you should be able to successfully run
-the testing suite:
+the test suite:
 
 ```bash
 mix test
