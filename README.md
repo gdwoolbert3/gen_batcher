@@ -136,7 +136,7 @@ trigger a flush based on byte size.
 
 In cases where an item-based flush trigger is temporarily delayed (ie
 `GenBatcher.insert_all/3`), the `c:GenBatcher.handle_insert/2` callback will not
-be called until after a flush operation is triggered. This means that the
+be called again until after a flush operation is triggered. This means that the
 accumulator term is guaranteed to be in a valid state whenever this callback is
 invoked.
 
