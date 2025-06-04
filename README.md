@@ -153,7 +153,6 @@ partitioning strategies.
 
 All of a `GenBatcher`'s partitions utilize the same flush conditions. This can
 occasionally lead to bursts of flush operations being triggered at around the
-
 same time. The `c:GenBatcher.initial_acc/0` callback can be leveraged to
 "jitter" item-based flush triggers in order to "desync" flush operations and
 mitigate this issue. For example, the `GenBatcher` below enforces an absolute
