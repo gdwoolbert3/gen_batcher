@@ -13,7 +13,7 @@ dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gen_batcher "~> 1.0.0"}
+    {:gen_batcher "~> 1.1.0"}
   ]
 end
 ```
