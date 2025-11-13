@@ -29,6 +29,6 @@ defmodule GenBatcher.Partition.Info do
           :batch_size => non_neg_integer(),
           :flush_meta => term(),
           :partition => non_neg_integer(),
-          optional(atom()) => term(),
+          optional(atom()) => term()
         }
 end
