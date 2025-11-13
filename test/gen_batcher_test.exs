@@ -116,7 +116,7 @@ defmodule GenBatcherTest do
     test "will flush a partitioned GenBatcher on termination" do
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(partitions: 2)
 
-      GenServer.stop(gen_batcher)
+      PartitionSupervisor.stop(gen_batcher)
 
       assert_received {["foo", "baz"], %Info{}, false, partition, partition}
       assert_received {["bar"], %Info{}, false, partition, partition}
