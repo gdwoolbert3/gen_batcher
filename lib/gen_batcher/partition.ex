@@ -154,16 +154,17 @@ defmodule GenBatcher.Partition do
   @impl GenServer
   @spec handle_continue(term(), State.t()) ::
           {:noreply, State.t()} | {:noreply, State.t(), {:continue, :refresh}}
-  if Mix.env() in [:dev, :test] do
+  # This code looks worse than it is. Basically, this block stores the flush ref
+  # of the last deferred flush but ONLY in lower mix environments. This allows
+  # us to test and debug without a performance hit in production.
+  if Mix.env() == :prod do
     def handle_continue(:flush, %State{} = state) do
-      # Stores the flush ref of the last deferred flush. This is done exclusively
-      # for testing, hence the usage of the process dictionary.
-      Process.put(:last_deferred_flush, state.flush_ref)
       do_flush(state)
       {:noreply, state, {:continue, :refresh}}
     end
   else
     def handle_continue(:flush, %State{} = state) do
+      Process.put(:last_deferred_flush, state.flush_ref)
       do_flush(state)
       {:noreply, state, {:continue, :refresh}}
     end
