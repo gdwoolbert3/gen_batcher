@@ -18,6 +18,7 @@ defmodule GenBatcher do
     batch_timeout: :infinity,
     blocking_flush?: false,
     flush_empty?: false,
+    ordering: :fifo,
     partitions: 1,
     shutdown: :infinity
   ]
@@ -171,6 +172,10 @@ defmodule GenBatcher do
     * `:name` - An optional identifier for a `GenBatcher`. For more information,
       see `t:t/0`. If a `t:module/0` is provided, that module's name will be
       used unless otherwise specified. Defaults to `GenBatcher`.
+
+    * `:ordering` - An optional ordering scheme (`:fifo` or `:lifo`) for
+      buffered items. Defaults to `:fifo`. If the ordering of items is
+      unimportant for a flush operation, `:lifo` is slightly more efficient.
 
     * `:partitions` - An optional `t:pos_integer/0` denoting the number of
       partitions. Defaults to `1`. For more information, see
@@ -390,6 +395,11 @@ defmodule GenBatcher do
   @doc """
   Inserts an item into the given `GenBatcher`.
 
+  > #### Warning {: .warning}
+  >
+  > When inserting multiple items into an `GenBatcher`, using `insert_all/3` is
+  > far more efficient than inserting each item individually.
+
   ## Options
   An item can be inserted into a `GenBatcher` with the following options:
 
@@ -423,11 +433,6 @@ defmodule GenBatcher do
   items inserted.
 
   All of the given items are inserted into the same partition.
-
-  > #### Tip {: .tip}
-  >
-  > When inserting multiple items into an `GenBatcher`, this function will be
-  > far more performant than calling `insert/2` for each one.
 
   ## Options
 

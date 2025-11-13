@@ -3,7 +3,7 @@ defmodule GenBatcher.MixProject do
 
   use Mix.Project
 
-  @version "1.0.0"
+  @version "1.1.0"
 
   ################################
   # Public API
@@ -24,7 +24,7 @@ defmodule GenBatcher.MixProject do
       description: description(),
       dialyzer: dialyzer(),
       docs: docs(),
-      elixir: "~> 1.17",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       name: "GenBatcher",
       package: package(),
@@ -53,10 +53,10 @@ defmodule GenBatcher.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.36.1", only: :dev, runtime: false},
-      {:credo, "~> 1.7.11", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.3", only: [:dev, :test], runtime: false},
-      {:styler, "~> 1.2.1", only: [:dev, :test], runtime: false}
+      {:ex_doc, "~> 0.39.1", only: :dev, runtime: false},
+      {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.7", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.9.1", only: [:dev, :test], runtime: false}
     ]
   end
 

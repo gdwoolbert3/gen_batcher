@@ -15,6 +15,7 @@ defmodule GenBatcher.Partition.Info do
     * `partition` - The partition's index.
   """
 
+  @derive {Inspect, except: [:flush_ref]}
   defstruct [:batch_duration, :batch_size, :flush_meta, :flush_ref, :partition]
 
   ################################
@@ -22,10 +23,12 @@ defmodule GenBatcher.Partition.Info do
   ################################
 
   @typedoc "Information about a `GenBatcher` partition."
-  @type t :: %__MODULE__{
-          batch_duration: non_neg_integer(),
-          batch_size: non_neg_integer(),
-          flush_meta: term(),
-          partition: non_neg_integer()
+  @type t :: %{
+          :__struct__ => __MODULE__,
+          :batch_duration => non_neg_integer(),
+          :batch_size => non_neg_integer(),
+          :flush_meta => term(),
+          :partition => non_neg_integer(),
+          optional(atom()) => term()
         }
 end
