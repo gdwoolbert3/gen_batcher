@@ -395,6 +395,11 @@ defmodule GenBatcher do
   @doc """
   Inserts an item into the given `GenBatcher`.
 
+  > #### Warning {: .warning}
+  >
+  > When inserting multiple items into an `GenBatcher`, using `insert_all/3` is
+  > far more efficient than inserting each item individually.
+
   ## Options
   An item can be inserted into a `GenBatcher` with the following options:
 
@@ -428,11 +433,6 @@ defmodule GenBatcher do
   items inserted.
 
   All of the given items are inserted into the same partition.
-
-  > #### Tip {: .tip}
-  >
-  > When inserting multiple items into an `GenBatcher`, this function will be
-  > far more performant than calling `insert/2` for each one.
 
   ## Options
 
