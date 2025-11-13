@@ -93,6 +93,13 @@ defmodule GenBatcherTest do
       assert partition_empty?(gen_batcher, 0)
     end
 
+    test "will trigger a flush with LIFO ordering" do
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(ordering: :lifo)
+      assert_receive {["baz", "bar", "foo"], %Info{}, true, partition, flusher}
+      assert partition_empty?(gen_batcher, 0)
+      refute partition == flusher
+    end
+
     test "will not flush an empty batch" do
       assert start_gen_batcher(batch_timeout: 50) == {:ok, TestBatcher}
       refute_receive _, 150
@@ -199,6 +206,16 @@ defmodule GenBatcherTest do
       refute partition == flusher
       assert empty?(gen_batcher)
     end
+
+    test "will flush a GenBatcher with LIFO ordering" do
+      opts = [flush_trigger: nil, ordering: :lifo]
+
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
+      assert GenBatcher.flush(gen_batcher) == :ok
+      assert_receive {["baz", "bar", "foo"], %Info{}, true, partition, flusher}
+      refute partition == flusher
+      assert empty?(gen_batcher)
+    end
   end
 
   describe "flush_partition/3" do
@@ -233,6 +250,16 @@ defmodule GenBatcherTest do
       assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
       assert GenBatcher.flush_partition(gen_batcher, 0, async?: false) == :ok
       assert_received {["foo", "bar", "baz"], %Info{}, false, partition, partition}
+      assert partition_empty?(gen_batcher, 0)
+    end
+
+    test "will flush a GenBatcher partition with LIFO ordering" do
+      opts = [flush_trigger: nil, ordering: :lifo]
+
+      assert {:ok, gen_batcher} = start_and_seed_gen_batcher(opts)
+      assert GenBatcher.flush_partition(gen_batcher, 0) == :ok
+      assert_receive {["baz", "bar", "foo"], %Info{}, true, partition, flusher}
+      refute partition == flusher
       assert partition_empty?(gen_batcher, 0)
     end
 

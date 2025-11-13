@@ -13,7 +13,7 @@ dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gen_batcher "~> 1.0.0"}
+    {:gen_batcher "~> 1.1.0"}
   ]
 end
 ```
@@ -131,10 +131,10 @@ throughput when utilizing blocking flushes but this is generally not the case.
 
 In general, a size condition and/or timeout condition is sufficient for most use
 cases. However, `GenBatcher` also supports defining custom item-based flush
-triggers. [For example](#behaviour-example), these callbacks can be used to
+triggers. For example, [these callbacks]((#behaviour-example)) can be used to
 trigger a flush based on byte size.
 
-In cases where an item-based flush trigger is temporarily delayed (ie
+In cases where an item-based flush trigger is temporarily delayed (see
 `GenBatcher.insert_all/3`), the `c:GenBatcher.handle_insert/2` callback will not
 be called again until after a flush operation is triggered. This means that the
 accumulator term is guaranteed to be in a valid state whenever this callback is
