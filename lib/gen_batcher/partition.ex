@@ -189,7 +189,12 @@ defmodule GenBatcher.Partition do
   @impl GenServer
   @spec terminate(term(), State.t()) :: :ok
   def terminate(_, %State{items: [], flush_empty?: false}), do: :ok
-  def terminate(_, %State{} = state), do: do_blocking_flush(state)
+  def terminate(_, %State{timer: nil} = state), do: do_blocking_flush(state)
+
+  def terminate(_, %State{} = state) do
+    Process.cancel_timer(state.timer)
+    do_blocking_flush(state)
+  end
 
   ################################
   # Private API
